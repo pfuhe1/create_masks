@@ -167,9 +167,12 @@ def create_netcdf(template,data,outname,template_var='pr'):
 ############################################################################
 
 # Create a number of masks, from the shapefile, output text file
+#
+# Input Arguments:
+# shapefile: path of shapefile containing polygons
 # fieldname: attribute name in shapefile used to identify each field. 
-# field_list (optional): specify a list (subset) of fields to creat masks for,
-# 						otherwise masks will be created for all fields
+# field_list: (optional)- specify a list (subset) of fields to create masks for, otherwise masks will be created covering all fields
+#
 def create_polygon_textfiles(shapefile,fieldname,field_list=None):
 
 	# first create folders (if needed)
@@ -193,20 +196,60 @@ def create_polygon_textfiles(shapefile,fieldname,field_list=None):
 			for p in polygons:
 				add_to_text(text_polygons,p)
 
+#############################################################################
+
+# Create a textfile of polygons, combining multiple fields from the shapefile
+#
+# Input Arguments:
+# shapefile: path of shapefile containing polygons
+# fieldname: attribute name in shapefile used to identify each field. 
+# field_list: (optional)- specify a list (subset) of fields to include in the mask, otherwise the mask combines all fields
+# region_name: (optional)- name of region used in output filename
+#
+def create_combined_textfiles(shapefile, fieldname, field_list=None, region_name='region'):
+
+	# first create folder (if needed)
+	if not os.path.exists('masks_text'):
+		os.mkdir('masks_text')
+
+	# Load Shape file
+	regions=load_shapefile(shapefile,fieldname,field_list=field_list)
+
+	print 'Looping over regions and combining masks'
+	# Either loop over all regions, or list of regions specified by 'field_list'
+	if field_list == None:
+		field_list = regions.iterkeys()
+	
+	with open('masks_text/mask_'+region_name+'.txt','w') as text_polygons:
+		for region in field_list:
+			print fieldname,'=',region			
+			polygons = regions[region]
+
+			# Add polygon to text file
+			for p in polygons:
+				add_to_text(text_polygons,p)
+			
 ###############################################################################
 
 # Create a number of masks, from the shapefile, for a specific grid
-# f_grid: (filename of netcdf file contatining grid information)
-# latname, lonname: name of latitude and longitude variables in netcdf file
+# Area outside the polygons is True/1, area inside the polygons is False/0
+#
+# Input Arguments:
+# f_grid: filename of netcdf file contatining grid information
+# latname, lonname, template_var: variable names for latitude, longitude and a template variable in f_grid netcdf file
+# shapefile: path of shapefile containing polygons
 # fieldname: attribute name in shapefile used to identify each field. 
-# field_list (optional): specify a list (subset) of fields to creat masks for,
-# 						otherwise masks will be created for all fields
-def create_masks_netcdf(f_grid,shapefile,fieldname,field_list=None,latname='lat',lonname='lon',plot=False,template_var='pr'):
+# field_list: (optional)- specify a list (subset) of fields to create masks for, otherwise masks will be created covering all fields
+# plot, netcdf_out: (optional) booleans- whether or not to create output plot and/or output netcdf file
+#
+# Returns: dictionary of region_name:mask_array pairs
+#
+def create_masks(f_grid, shapefile, fieldname, field_list=None, latname='lat',lonname='lon',template_var='pr', plot=False, netcdf_out = False):
 
 	# first create folders (if needed)
 	if plot and not os.path.exists('plots'):
 		os.mkdir('plots')
-	if not os.path.exists('masks_netcdf'):
+	if netcdf_out and not os.path.exists('masks_netcdf'):
 		os.mkdir('masks_netcdf')
 
 	# Load Shape file
@@ -227,10 +270,15 @@ def create_masks_netcdf(f_grid,shapefile,fieldname,field_list=None,latname='lat'
 		m = Basemap(projection = 'robin',lon_0=180)
 		xx,yy=m(lonxx,latyy) # basemap coordinates
 
-	print 'Looping over regions and creating gridded masks'
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
 		field_list = regions.iterkeys()
+
+	# Dictionary of masks
+	masks={}
+
+	# Do the loop
+	print 'Looping over regions and creating gridded masks'
 	for region in field_list:
 		region_ascii = unicodedata.normalize('NFKD',str(region).decode('utf-8')).encode('ascii','ignore')
 
@@ -238,70 +286,12 @@ def create_masks_netcdf(f_grid,shapefile,fieldname,field_list=None,latname='lat'
 		polygons = regions[region]
 		# Create mask out of polygon, matching points from grid
 		mask = create_mask(polygons,points,nlat,nlon)
-		create_netcdf(Dataset(f_grid,'r'),mask,'masks_netcdf/mask_'+region_ascii+'.nc', template_var=template_var)
-		if plot:
-			plt.clf()
-			m.contourf(xx,yy,mask)
-			plt.colorbar()
-			m.drawcoastlines(linewidth=0.2)
-			m.drawcountries(linewidth=0.2)
-			plt.title('Mask: '+region_ascii)
-			plt.savefig('plots/mask_'+region_ascii+'.png')
+		
+		# Add to dictionary
+		masks[region_ascii] = mask
 
-#############################################################################
-
-# Create a number of masks, from the shapefile, for a specific grid
-# f_grid: (filename of netcdf file contatining grid information)
-# latname, lonname: name of latitude and longitude variables in netcdf file
-# fieldname: attribute name in shapefile used to identify each field. 
-# field_list (optional): specify a list (subset) of fields to creat masks for,
-# 						otherwise masks will be created for all fields
-def create_masks(f_grid,shapefile,fieldname,field_list=None,latname='lat',lonname='lon',plot=False,template_var='pr'):
-
-	# first create folders (if needed)
-	if plot and not os.path.exists('plots'):
-		os.mkdir('plots')
-	if not os.path.exists('masks_netcdf'):
-		os.mkdir('masks_netcdf')
-	if not os.path.exists('masks_text'):
-		os.mkdir('masks_text')
-
-	# Load Shape file
-	regions=load_shapefile(shapefile,fieldname,field_list=field_list)
-
-	# Load lat lon grid (for mask)
-	lonxx,latyy=load_grid(f_grid,latname=latname,lonname=lonname)
-	nlat,nlon=lonxx.shape
-	# Update lon to be from -180 to 180 
-	# NOTE: (this is only if the shapefile uses lat coordinates from -180-180 )
-	# Comment out otherwise
-	lonxx[lonxx>180]=lonxx[lonxx>180]-360
-	# Turn lat and lon into a list of coordinates
-	points = np.vstack((lonxx.flatten(),latyy.flatten())).T
-
-	if plot:
-		# Set up Basemap projection (may need fine tuning)
-		m = Basemap(projection = 'robin',lon_0=180)
-		xx,yy=m(lonxx,latyy) # basemap coordinates
-
-	print 'Looping over regions and creating gridded masks'
-	# Either loop over all regions, or list of regions specified by 'field_list'
-	if field_list == None:
-		field_list = regions.iterkeys()
-	for region in field_list:
-		region_ascii = unicodedata.normalize('NFKD',region_ascii.decode('utf-8')).encode('ascii','ignore')
-
-		print fieldname,'=',region
-		polygons = regions[region]
-
-		# Create mask out of polygon, matching points from grid
-		mask = create_mask(polygons,points,nlat,nlon)
-		create_netcdf(Dataset(f_grid,'r'),mask,'masks_netcdf/mask_'+region_ascii+'.nc',template_var=template_var)
-
-		# Write polygons to text file
-		with open('masks_text/mask_'+region_ascii+'.txt','w') as text_polygons:
-			for p in polygons:
-				add_to_text(text_polygons,p)
+		if netcdf_out:
+			create_netcdf(Dataset(f_grid,'r'),mask,'masks_netcdf/mask_'+region_ascii+'.nc', template_var=template_var)
 
 		if plot:
 			plt.clf()
@@ -312,23 +302,31 @@ def create_masks(f_grid,shapefile,fieldname,field_list=None,latname='lat',lonnam
 			plt.title('Mask: '+region_ascii)
 			plt.savefig('plots/mask_'+region_ascii+'.png')
 
+	return masks
+
 #############################################################################
 
-# Create a mask, combining multiple fields from the shapefile, for a specific grid
-# f_grid: (filename of netcdf file contatining grid information)
-# latname, lonname: name of latitude and longitude variables in netcdf file
+# Create a mask, combining multiple fields from a shapefile, for a specific grid
+# Area outside the polygons is True/1, area inside the polygons is False/0
+#
+# Input Arguments:
+# f_grid: filename of netcdf file contatining grid information
+# latname, lonname, template_var: variable names for latitude, longitude and a template variable in f_grid netcdf file
+# shapefile: path of shapefile containing polygons
 # fieldname: attribute name in shapefile used to identify each field. 
-# field_list (optional): specify a list (subset) of fields to create masks for,
-# 						otherwise masks will be created covering all fields
-def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name='region',latname='lat',lonname='lon',plot=False,template_var='pr'):
+# field_list: (optional)- specify a list (subset) of fields to include in the mask, otherwise the mask combines all fields
+# plot, netcdf_out: (optional) booleans- whether or not to create output plot and/or output netcdf file
+# region_name: (optional)- name of region in output files
+# 
+# Returns array of the combined mask
+#
+def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name='region',latname='lat',lonname='lon',template_var='pr', plot=False,netcdf_out=False):
 
 	# first create folders (if needed)
 	if plot and not os.path.exists('plots'):
 		os.mkdir('plots')
-	if not os.path.exists('masks_netcdf'):
+	if netcdf_out and not os.path.exists('masks_netcdf'):
 		os.mkdir('masks_netcdf')
-	if not os.path.exists('masks_text'):
-		os.mkdir('masks_text')
 
 	# Load Shape file
 	regions=load_shapefile(shapefile,fieldname,field_list=field_list)
@@ -357,25 +355,21 @@ def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name=
 		field_list = regions.iterkeys()
 
 	i=1
-	with open('masks_text/mask_'+region_name+'.txt','w') as text_polygons:
-		for region in field_list:
-			print fieldname,'=',region			
-			polygons = regions[region]
-
-			# Add polygon to text file
-			for p in polygons:
-				add_to_text(text_polygons,p)
-			
-			# Create mask out of polygon, matching points from grid
-			mask = create_mask(polygons,points,nlat,nlon)
-			print mask.shape
-			combined_mask = combined_mask + (mask-1)*-1
-			if plot:
-				plot_mask = plot_mask + (mask-1)*-i
-			i+=1
+	for region in field_list:
+		print fieldname,'=',region			
+		polygons = regions[region]
+		
+		# Create mask out of polygon, matching points from grid
+		mask = create_mask(polygons,points,nlat,nlon)
+		print mask.shape
+		combined_mask = combined_mask + (mask-1)*-1
+		if plot:
+			plot_mask = plot_mask + (mask-1)*-i
+		i+=1
 	
 	# Create netcdf for combined mask
-	create_netcdf(Dataset(f_grid,'r'),combined_mask,'masks_netcdf/mask_'+region_name+'.nc',template_var=template_var)
+	if netcdf_out:
+		create_netcdf(Dataset(f_grid,'r'),combined_mask,'masks_netcdf/mask_'+region_name+'.nc',template_var=template_var)
 
 	if plot:
 		plt.clf()
@@ -386,21 +380,28 @@ def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name=
 		plt.title('Mask: '+region_name)
 		plt.savefig('plots/mask_'+region_name+'.png')
 
+	return mask
+
 #############################################################################
 
 # Create a mask, from textfile for a specific grid
+# Area outside the polygons is True/1, area inside the polygons is False/0
+#
+# Input Arguments:
 # f_grid: (filename of netcdf file contatining grid information)
-# latname, lonname: name of latitude and longitude variables in netcdf file
+# textfile: path of text file containing coordinates of polygons
+# latname, lonname, template_var: variable names for latitude, longitude and a template variable in f_grid netcdf file
+# plot, netcdf_out: (optional) booleans- whether or not to create output plot and/or output netcdf file
 # 
-def create_mask_fromtext(f_grid,textfile,region_name='region',latname='lat',lonname='lon',plot=False,template_var='pr'):
+# Returns: mask array 
+#
+def create_mask_fromtext(f_grid, textfile, region_name='region', latname='lat', lonname='lon', template_var='pr', plot=False, netcdf_out=False):
 
 	# first create folders (if needed)
 	if plot and not os.path.exists('plots'):
 		os.mkdir('plots')
-	if not os.path.exists('masks_netcdf'):
+	if netcdf_out and not os.path.exists('masks_netcdf'):
 		os.mkdir('masks_netcdf')
-	if not os.path.exists('masks_text'):
-		os.mkdir('masks_text')
 
 	# Load Shape file
 	polygons=load_polygons(textfile)
@@ -425,7 +426,8 @@ def create_mask_fromtext(f_grid,textfile,region_name='region',latname='lat',lonn
 	mask = create_mask(polygons,points,nlat,nlon)
 
 	# Create netcdf for combined mask
-	create_netcdf(Dataset(f_grid,'r'),mask,'masks_netcdf/mask_'+region_name+'.nc',template_var=template_var)
+	if netcdf_out:
+		create_netcdf(Dataset(f_grid,'r'),mask,'masks_netcdf/mask_'+region_name+'.nc',template_var=template_var)
 
 	if plot:
 		plt.clf()
@@ -435,6 +437,8 @@ def create_mask_fromtext(f_grid,textfile,region_name='region',latname='lat',lonn
 		m.drawcountries(linewidth=0.2)
 		plt.title('Mask: '+region_name)
 		plt.savefig('plots/mask_'+region_name+'.png')
+
+	return mask
 
 #################################################################################
 #
@@ -453,11 +457,7 @@ if __name__=='__main__':
 	#fieldname = 'SORT'
 	#area = [16,17,18]
 
-#	create_masks_netcdf(f_grid,shapefile,fieldname,field_list=area,latname='lat',lonname='lon',template_var='pr',plot=True)
-
-#	create_masks_netcdf(f_grid,shapefile,fieldname,field_list=area,latname='global_latitude0',lonname='global_longitude0',template_var='field8',plot=True)
-
-#	create_mask_combined(f_grid,shapefile,fieldname,field_list=area,latname='lat',lonname='lon',template_var='pr',plot=True,region_name='rivertest')
+#	create_mask_combined(f_grid,shapefile,fieldname,field_list=area,latname='lat',lonname='lon',template_var='pr', region_name='rivertest' plot=True, netcdf_out=True)
 
 # Example: countries
 	shapefile = '/export/silurian/array-01/pu17449/shapefiles/countries/ne_10m_admin_0_countries.shp'
@@ -468,7 +468,7 @@ if __name__=='__main__':
 
 # Example for Rob:
 # Create mask for bangladesh
-#	create_mask_combined(f_grid,shapefile,fieldname,field_list=['Bangladesh'],region_name='Bangladesh',latname='lat',lonname='lon',plot=True,template_var='pr')
+#	mask_array = create_mask_combined(f_grid,shapefile,fieldname,field_list=['Bangladesh'],region_name='Bangladesh',latname='lat',lonname='lon',plot=True,netcdf_out=True, template_var='pr')
 	
 
 # Example for Fredi:
@@ -479,5 +479,5 @@ if __name__=='__main__':
 	# Text file with region boundaries
 #	f_text = '/home/bridge/pu17449/src/happi_analysis/river_basins/masks_text/mask_ganges.txt'
 
-#	create_mask_fromtext(f_grid,f_text, region_name='ganges', latname='global_latitude0',lonname='global_longitude0', template_var='field8', plot=True)
+#	create_mask_fromtext(f_grid,f_text, region_name='ganges', latname='global_latitude0',lonname='global_longitude0', template_var='field8', plot=True, netcdf_out=False)
 
