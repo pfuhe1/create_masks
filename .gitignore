@@ -1,3 +1,4 @@
 masks_netcdf
 masks_text
 plots
+*.pyc

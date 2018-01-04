@@ -112,8 +112,11 @@ def load_shapefile(shapefile,fieldname,field_list=None):
 	boundaries=[]
 	types=[]
 	for feature in layer:
-		print feature.items()
-		region=feature.GetField(fieldname)
+		try:
+			region=feature.GetField(fieldname)
+		except ValueError:
+			print feature.items()
+			raise Exception('Error, field "'+fieldname+'" does not exist in the shapefile')
 		print region
 		if field_list is not None and region not in field_list:
 			# Skip this region
@@ -460,19 +463,20 @@ if __name__=='__main__':
 #	create_mask_combined(f_grid,shapefile,fieldname,field_list=area,latname='lat',lonname='lon',template_var='pr', region_name='rivertest' plot=True, netcdf_out=True)
 
 # Example: countries
-	shapefile = '/export/silurian/array-01/pu17449/shapefiles/countries/ne_10m_admin_0_countries.shp'
-	fieldname = 'NAME'
-	
-	# Create mask for each country in shapefile
-	#create_masks_netcdf(f_grid,shapefile,fieldname,field_list=None,latname='lat',lonname='lon',template_var='pr',plot=True)
+#
+#	shapefile = '/export/silurian/array-01/pu17449/shapefiles/countries/ne_10m_admin_0_countries.shp'
+#	fieldname = 'NAME'
+#	# Create mask for each country in shapefile
+#	create_masks(f_grid,shapefile,fieldname,latname='lat',lonname='lon',template_var='pr',plot=True)
 
 # Example for Rob:
+#
 # Create mask for bangladesh
 #	mask_array = create_mask_combined(f_grid,shapefile,fieldname,field_list=['Bangladesh'],region_name='Bangladesh',latname='lat',lonname='lon',plot=True,netcdf_out=True, template_var='pr')
 	
 
 # Example for Fredi:
-	
+#	
 	# Template grid for output mask
 #	f_grid='/export/silurian/array-01/pu17449/ie2sga.pdl4dec.nc'
 
@@ -480,4 +484,10 @@ if __name__=='__main__':
 #	f_text = '/home/bridge/pu17449/src/happi_analysis/river_basins/masks_text/mask_ganges.txt'
 
 #	create_mask_fromtext(f_grid,f_text, region_name='ganges', latname='global_latitude0',lonname='global_longitude0', template_var='field8', plot=True, netcdf_out=False)
+
+# Example for Sjoukje (creating text files)
+#
+#	shapefile = '/export/anthropocene/array-01/pu17449/basins_sjoukje/Aqueduct_river_basins_GANGES - BRAHMAPUTRA.shp'
+#	fieldname = 'BASIN_NAME'
+#	create_polygon_textfiles(shapefile,fieldname)
 
