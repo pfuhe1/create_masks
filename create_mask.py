@@ -71,11 +71,7 @@ def create_mask(polygons,points,nlat,nlon):
 		# Determine if  points inside polygon
 		tmp_mask = polygon.contains_points(points)
 		# Reshape mask to dimensions of the grid
-		tmp_mask=np.reshape(tmp_mask,[nlat,nlon])
-		try:
-			mask=tmp_mask | mask
-		except:
-			mask=tmp_mask
+		mask=np.reshape(tmp_mask,[nlat,nlon])
 
 	return ~mask # Invert the mask so true is outside the region
 
@@ -101,7 +97,9 @@ def add_to_text(fileh,polygon):
 	fileh.write('\n')
 
 #################################################################################
-
+# 
+# Function to read in a shapefile and output the polygons of each feature
+# input 'fieldname' needs to be a unique identifier for each polygon e.g. ID or NAME
 def load_shapefile(shapefile,fieldname,field_list=None):
 	
 	print 'Loading Shapefile'
@@ -140,6 +138,52 @@ def load_shapefile(shapefile,fieldname,field_list=None):
 		if region is not None and boundary is not None:
 			counties[region]=polygons
 	return counties
+	
+#################################################################################
+# 
+# Function to read in a shapefile and output the polygons of each feature
+# input 'fieldname' needs to be a unique identifier for each polygon e.g. ID or NAME
+# Also returns attributes of each feature
+def load_shapefile_attrs(shapefile,fieldname,field_list=None):
+	
+	print 'Loading Shapefile'
+	driver = ogr.GetDriverByName("ESRI Shapefile")
+	dataSource = driver.Open(shapefile, 0)
+	layer = dataSource.GetLayer()
+	counties={}
+	attributes = {}
+	boundaries=[]
+	types=[]
+	for feature in layer:
+		try:
+			region=feature.GetField(fieldname)
+		except ValueError:
+			print feature.items()
+			raise Exception('Error, field "'+fieldname+'" does not exist in the shapefile')
+		print region
+		attributes[region] = feature.items()
+		if field_list is not None and region not in field_list:
+			# Skip this region
+			continue
+
+
+		geometry=feature.GetGeometryRef()
+		boundary=eval(feature.geometry().Boundary().ExportToJson())
+		#geometry = json['geometry']
+
+		if boundary['type']=='LineString':
+			polygons=[Path(np.array(boundary['coordinates']))]
+		elif boundary['type']=='MultiLineString':
+			polygons=[]
+			for p in boundary['coordinates']:
+				polygons.append(Path(np.array(p)))
+		else:
+			print 'Error: unknown geometry'
+			continue
+
+		if region is not None and boundary is not None:
+			counties[region]=polygons
+	return counties,attributes
 
 ################################################################################
 		
@@ -452,6 +496,9 @@ if __name__=='__main__':
 	f_grid='/export/silurian/array-01/pu17449/processed_data_clim_2deg/NorESM1-HAPPI.pr.All-Hist_monclim_ensmean.nc'
 	#f_grid = '/export/silurian/array-01/pu17449/processed_data_clim/CAM5-1-2-025degree.pr.All-Hist_monclim_ensmean.nc'
 	
+	f_text = '../../mask_sjoukje.txt'
+	create_mask_fromtext(f_grid, f_text, region_name='test', latname='lat', lonname='lon', template_var='pr', plot=True, netcdf_out=False)
+
 	# Shapefile with polygon vertices
 	#continent = 'as'
 	#lev = 3
