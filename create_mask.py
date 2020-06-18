@@ -6,7 +6,6 @@ from matplotlib.path import Path
 from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
-from mpl_toolkits.basemap import Basemap,cm
 import os
 import unicodedata
 
@@ -102,7 +101,7 @@ def add_to_text(fileh,polygon):
 # input 'fieldname' needs to be a unique identifier for each polygon e.g. ID or NAME
 def load_shapefile(shapefile,fieldname,field_list=None):
 	
-	print 'Loading Shapefile'
+	print('Loading Shapefile')
 	driver = ogr.GetDriverByName("ESRI Shapefile")
 	dataSource = driver.Open(shapefile, 0)
 	layer = dataSource.GetLayer()
@@ -113,9 +112,9 @@ def load_shapefile(shapefile,fieldname,field_list=None):
 		try:
 			region=feature.GetField(fieldname)
 		except ValueError:
-			print feature.items()
+			print(feature.items())
 			raise Exception('Error, field "'+fieldname+'" does not exist in the shapefile')
-		print region
+		print(region)
 		if field_list is not None and region not in field_list:
 			# Skip this region
 			continue
@@ -132,7 +131,7 @@ def load_shapefile(shapefile,fieldname,field_list=None):
 			for p in boundary['coordinates']:
 				polygons.append(Path(np.array(p)))
 		else:
-			print 'Error: unknown geometry'
+			print('Error: unknown geometry')
 			continue
 
 		if region is not None and boundary is not None:
@@ -146,7 +145,7 @@ def load_shapefile(shapefile,fieldname,field_list=None):
 # Also returns attributes of each feature
 def load_shapefile_attrs(shapefile,fieldname,field_list=None):
 	
-	print 'Loading Shapefile'
+	print('Loading Shapefile')
 	driver = ogr.GetDriverByName("ESRI Shapefile")
 	dataSource = driver.Open(shapefile, 0)
 	layer = dataSource.GetLayer()
@@ -158,9 +157,9 @@ def load_shapefile_attrs(shapefile,fieldname,field_list=None):
 		try:
 			region=feature.GetField(fieldname)
 		except ValueError:
-			print feature.items()
+			print(feature.items())
 			raise Exception('Error, field "'+fieldname+'" does not exist in the shapefile')
-		print region
+		print(region)
 		attributes[region] = feature.items()
 		if field_list is not None and region not in field_list:
 			# Skip this region
@@ -176,9 +175,9 @@ def load_shapefile_attrs(shapefile,fieldname,field_list=None):
 		elif boundary['type']=='MultiLineString':
 			polygons=[]
 			for p in boundary['coordinates']:
-				polygons.append(Path(np.array(p)))
+				polygons.append(Path(np.array(p),closed=True))
 		else:
-			print 'Error: unknown geometry'
+			print('Error: unknown geometry')
 			continue
 
 		if region is not None and boundary is not None:
@@ -229,14 +228,14 @@ def create_polygon_textfiles(shapefile,fieldname,field_list=None):
 	# Load Shape file
 	regions=load_shapefile(shapefile,fieldname,field_list=field_list)
 
-	print 'Looping over regions and creating text files of masks'
+	print('Looping over regions and creating text files of masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
 		field_list = regions.iterkeys()
 	for region in field_list:
 		region_ascii = unicodedata.normalize('NFKD',str(region).decode('utf-8')).encode('ascii','ignore')
 
-		print fieldname,'=',region
+		print(fieldname,'=',region)
 		polygons = regions[region]
 		# Write polygons to text file
 		with open('masks_text/mask_'+region_ascii+'.txt','w') as text_polygons:
@@ -262,14 +261,14 @@ def create_combined_textfiles(shapefile, fieldname, field_list=None, region_name
 	# Load Shape file
 	regions=load_shapefile(shapefile,fieldname,field_list=field_list)
 
-	print 'Looping over regions and combining masks'
+	print('Looping over regions and combining masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
 		field_list = regions.iterkeys()
 	
 	with open('masks_text/mask_'+region_name+'.txt','w') as text_polygons:
 		for region in field_list:
-			print fieldname,'=',region			
+			print(fieldname,'=',region)
 			polygons = regions[region]
 
 			# Add polygon to text file
@@ -313,6 +312,7 @@ def create_masks(f_grid, shapefile, fieldname, field_list=None, latname='lat',lo
 	points = np.vstack((lonxx.flatten(),latyy.flatten())).T
 
 	if plot:
+		from mpl_toolkits.basemap import Basemap,cm		
 		# Set up Basemap projection (may need fine tuning)
 		m = Basemap(projection = 'robin',lon_0=180)
 		xx,yy=m(lonxx,latyy) # basemap coordinates
@@ -325,11 +325,11 @@ def create_masks(f_grid, shapefile, fieldname, field_list=None, latname='lat',lo
 	masks={}
 
 	# Do the loop
-	print 'Looping over regions and creating gridded masks'
+	print('Looping over regions and creating gridded masks')
 	for region in field_list:
 		region_ascii = unicodedata.normalize('NFKD',str(region).decode('utf-8')).encode('ascii','ignore')
 
-		print fieldname,'=',region
+		print(fieldname,'=',region)
 		polygons = regions[region]
 		# Create mask out of polygon, matching points from grid
 		mask = create_mask(polygons,points,nlat,nlon)
@@ -391,24 +391,25 @@ def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name=
 
 	combined_mask = np.zeros([nlat,nlon])
 	if plot:
+		from mpl_toolkits.basemap import Basemap,cm
 		# Set up Basemap projection (may need fine tuning)
 		m = Basemap(projection = 'robin',lon_0=180)
 		xx,yy=m(lonxx,latyy) # basemap coordinates
 		plot_mask = np.zeros([nlat,nlon])
 
-	print 'Looping over regions and combining masks'
+	print('Looping over regions and combining masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
 		field_list = regions.iterkeys()
 
 	i=1
 	for region in field_list:
-		print fieldname,'=',region			
+		print(fieldname,'=',region)
 		polygons = regions[region]
 		
 		# Create mask out of polygon, matching points from grid
 		mask = create_mask(polygons,points,nlat,nlon)
-		print mask.shape
+		print(mask.shape)
 		combined_mask = combined_mask + (mask-1)*-1
 		if plot:
 			plot_mask = plot_mask + (mask-1)*-i
@@ -464,6 +465,7 @@ def create_mask_fromtext(f_grid, textfile, region_name='region', latname='lat', 
 	points = np.vstack((lonxx.flatten(),latyy.flatten())).T
 
 	if plot:
+		from mpl_toolkits.basemap import Basemap,cm
 		# Set up Basemap projection (may need fine tuning)
 		m = Basemap(projection = 'robin',lon_0=180)
 		xx,yy=m(lonxx,latyy) # basemap coordinates
