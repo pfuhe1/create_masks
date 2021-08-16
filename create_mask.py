@@ -231,9 +231,11 @@ def create_polygon_textfiles(shapefile,fieldname,field_list=None):
 	print('Looping over regions and creating text files of masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
-		field_list = regions.iterkeys()
+		field_list = regions.keys()
 	for region in field_list:
-		region_ascii = unicodedata.normalize('NFKD',str(region).decode('utf-8')).encode('ascii','ignore')
+		#region_ascii = unicodedata.normalize('NFKD',str(region).decode('utf-8')).encode('ascii','ignore')
+		#region_ascii = str(unicodedata.normalize('NFKD',region).encode('ascii','ignore'))
+		region_ascii = unicodedata.normalize('NFKD',region)
 
 		print(fieldname,'=',region)
 		polygons = regions[region]
@@ -264,7 +266,7 @@ def create_combined_textfiles(shapefile, fieldname, field_list=None, region_name
 	print('Looping over regions and combining masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
-		field_list = regions.iterkeys()
+		field_list = regions.keys()
 	
 	with open('masks_text/mask_'+region_name+'.txt','w') as text_polygons:
 		for region in field_list:
@@ -319,7 +321,7 @@ def create_masks(f_grid, shapefile, fieldname, field_list=None, latname='lat',lo
 
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
-		field_list = regions.iterkeys()
+		field_list = regions.keys()
 
 	# Dictionary of masks
 	masks={}
@@ -400,7 +402,7 @@ def create_mask_combined(f_grid,shapefile,fieldname,field_list=None,region_name=
 	print('Looping over regions and combining masks')
 	# Either loop over all regions, or list of regions specified by 'field_list'
 	if field_list == None:
-		field_list = regions.iterkeys()
+		field_list = regions.keys()
 
 	i=1
 	for region in field_list:
